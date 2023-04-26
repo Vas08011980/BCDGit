@@ -1,0 +1,287 @@
+---
+title: "BDC"
+author: "Vasileios Stavropoulos"
+date: "`r Sys.Date()`"
+output: html_document
+---
+Prepare Library
+```{r}
+message=FALSE
+echo=FALSE
+warnings=FALSE
+error=FALSE
+suppressWarnings({
+  
+  suppressMessages({
+  
+library(tidyverse)
+library(tidymodels)
+library(purrr)
+library(haven)
+library(scales)
+library(ggpubr)
+library(patchwork)
+library(psych)
+library(rstatix)
+library(rcompanion)
+library(broom)
+library(knitr)
+library(readr)
+library(here)
+library(psych)
+library(officer)
+library(ggplot2)
+library(dplyr)
+library(broom.mixed) 
+library(dotwhisker)  
+library(rstanarm)
+library(agua)
+library(parsnip)
+library(plyr)
+library(themis)
+library(DMwR)
+library(naivebayes)
+library(yardstick)
+library(vip)
+library(palmerpenguins)
+library(nnet)
+library(Metrics)
+library(kernlab)
+library(e1071)
+library(usethis)
+library(devtools)
+library(discrim)
+library(ranger)    
+  
+})
+})
+```
+
+Import and prepare the data for the analyses
+```{r}
+message=FALSE
+echo=FALSE
+warnings=FALSE
+error=FALSE
+suppressWarnings({
+  
+  options(scipen = 9999, digits=3, max.print=999999, show.signif.stars=TRUE)
+  
+  data<-read_sav("C:/Users/vasil/Desktop/BDC/BDC.sav")
+  
+  data1<-data[c("Q37", "Q38", "Q39", "Q40", "Q42", "Q43", "Q44", "Q45", "Q46", "Q47", "Q48", "Q49", "Q50", "Q112", "Q113", "Q114", "Q115", "Q116", "Q117", "Q118", "Q119", "Q120", "Q121", "Q122", "Q123", "Q126", "Q127", "Q128", "Q129", "Q130", "Q131")]
+DataNN<-data1%>%setNames(c("GDT1", "GDT2", "GDT3", "GDT4", "IGD1", "IGD2", "IGD3", "IGD4", "IGD5", "IGD6", "IGD7", "IGD8", "IGD9", "ID1", "ID2", "ID3", "ID4", "IM1", "IM2", "IM3", "IM4", "IM5", "COMP1", "COMP2", "COMP3", "PE1", "PE2", "PE3", "PE4", "PE5", "PE6"))
+DataN<-DataNN%>%mutate(GDT1=case_when(GDT1>2~1,
+                                      GDT1<3~0,
+                                      TRUE~NA_real_),
+                       GDT2=case_when(GDT2>2~1,
+                                      GDT2<3~0,
+                                      TRUE~NA_real_),
+                       GDT3=case_when(GDT3>2~1,
+                                      GDT3<3~0,
+                                      TRUE~NA_real_),
+                       GDT4=case_when(GDT4>2~1,
+                                      GDT4<3~0,
+                                      TRUE~NA_real_),
+                       IGD1=case_when(IGD1>2~1,
+                                      IGD1<3~0,
+                                      TRUE~NA_real_),
+                       IGD2=case_when(IGD2>2~1,
+                                      IGD2<3~0,
+                                      TRUE~NA_real_),
+                       IGD3=case_when(IGD3>2~1,
+                                      IGD3<3~0,
+                                      TRUE~NA_real_),
+                       IGD4=case_when(IGD4>2~1,
+                                      IGD4<3~0,
+                                      TRUE~NA_real_),
+                       IGD5=case_when(IGD5>2~1,
+                                      IGD5<3~0,
+                                      TRUE~NA_real_),
+                       IGD6=case_when(IGD6>2~1,
+                                      IGD6<3~0,
+                                      TRUE~NA_real_),
+                       IGD7=case_when(IGD7>2~1,
+                                      IGD7<3~0,
+                                      TRUE~NA_real_),
+                       IGD8=case_when(IGD8>2~1,
+                                      IGD8<3~0,
+                                      TRUE~NA_real_),
+                       IGD9=case_when(IGD9>2~1,
+                                      IGD9<3~0,
+                                      TRUE~NA_real_))
+DataM<-DataN%>%mutate(GDTTotal=GDT1+GDT2+GDT3+GDT4)%>%mutate(IGDTTotal=IGD1+IGD2+IGD3+IGD4+IGD5+IGD6+IGD7+IGD8+IGD9)%>%mutate(IDTotal=ID1+ID2+ID3+ID4)%>%mutate(IMTotal=IM1+IM2+IM3+IM4+IM5)%>%mutate(COMPTotal=COMP1+COMP2+COMP3)%>%mutate(PETotal=PE1+PE2+PE3+PE4+PE5+PE6)
+DATAAIGD<-DataM[c("GDTTotal", "IDTotal", "IMTotal", "COMPTotal", "PETotal")]
+DATAAIIGD<-DataM[c("IGDTTotal", "IDTotal", "IMTotal", "COMPTotal", "PETotal")]
+GDTD<-na.omit(DATAAIGD)
+IGDD<-na.omit(DATAAIIGD)
+GDTD<-GDTD%>%mutate(GDTTotal=case_when(GDTTotal==4~1,
+                                       GDTTotal==3~1,
+                                      GDTTotal<3~0,
+                                      TRUE~NA_real_))
+GDTD<-GDTD %>% 
+  mutate(GDTTotal = case_when(GDTTotal == 1 ~ "Yes",
+                             GDTTotal == 0 ~ "No"))
+IGDD<-IGDD%>%mutate(IGDTTotal=case_when(IGDTTotal==9~1,
+                                       IGDTTotal==8~1,
+                                       IGDTTotal==7~1,
+                                       IGDTTotal==6~1,
+                                       IGDTTotal==5~1,
+                                      IGDTTotal<5~0,
+                                      TRUE~NA_real_))
+IGDD<-IGDD %>% 
+  mutate(IGDTTotal = case_when(IGDTTotal == 1 ~ "Yes",
+                             IGDTTotal == 0 ~ "No"))
+  GDTDiag<-GDTD%>%setNames(c("GDDiag", "IDTotal", "IMTotal", "COMPTotal", "PETotal")) 
+  IGDDiag<-IGDD%>%setNames(c("IGDDiag", "IDTotal", "IMTotal", "COMPTotal", "PETotal"))
+  WHOT<-table(GDTDiag$GDDiag)
+  APAT<-table(IGDDiag$IGDDiag)
+  
+  ComparisonWHOandAPA<-rbind(WHOT, APAT)
+  kable(ComparisonWHOandAPA)
+  
+  ChiSqu<-chisq.test(ComparisonWHOandAPA)
+  Cram<-cramer_v(ComparisonWHOandAPA)
+  
+  ChiSqu
+  Cram
+
+}) 
+```
+Prepare the training and testing data for the classification supervised algorithms based on the WHO criteria
+
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+suppressWarnings({
+  
+  suppressMessages({
+
+prior_dist <- rstanarm::student_t(df = 7, location = 0, scale = 2.5)
+set.seed(123)
+data_split <- initial_split(GDTDiag, prop = 3/4, strata = GDDiag, breaks = 4, pool = 0.1)
+# Create data frames for the two sets:
+train_data_GD <- training(data_split)
+test_data_GD  <- testing(data_split)
+#Crossvalidation split
+set.seed(123)
+folds <- vfold_cv(train_data_GD, v = 10)
+TRGDTab<-table(train_data_GD$GDDiag)
+TESTGDTab<-table(test_data_GD$GDDiag)
+
+ComparisonTrainingandTesting<-rbind(TRGDTab, TESTGDTab)
+  kable(ComparisonTrainingandTesting)
+  
+  TTChiSqu<-chisq.test(ComparisonTrainingandTesting)
+  TTCram<-cramer_v(ComparisonTrainingandTesting)
+  
+  TTChiSqu
+  TTCram
+
+
+})
+})
+```
+
+Introduce, prepare and bake the prediction recipe
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+set.seed(123)
+GD_rec <- 
+  recipe(GDDiag ~ ., data = train_data_GD)%>% step_smote(GDDiag, over_ratio = 0.25)%>%step_dummy(all_nominal_predictors())%>%step_zv(all_predictors())%>%step_nzv(all_predictors())%>%step_corr(all_predictors())%>%step_normalize(all_numeric_predictors())%>%prep()
+
+train_data_GD_b<-bake(GD_rec, new_data = train_data_GD)
+test_data_GD_b<-bake(GD_rec, new_data = test_data_GD)
+ describe(train_data_GD_b)
+
+```
+Introduce the models to later mix with the baked recipe to create the workflows. A model is composed by a type, a mode and an engine.
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+set.seed(123)
+## token model
+twt_null <- null_model()%>%
+  set_engine("parsnip")%>%
+  set_mode("classification")
+## model specification LASSO
+lasso_spec <- multinom_reg(penalty = 0.1, mixture = 1)%>%
+  set_mode("classification")%>%
+  set_engine("glmnet")
+# model specification Naive Bayes
+nb_spec <- naive_Bayes()%>%
+  set_mode("classification")%>%
+  set_engine("naivebayes")
+# model spec random forest
+ranger_spec<-rand_forest()%>% 
+  set_engine("ranger", importance = "impurity")%>% 
+  set_mode("classification")
+##model spec log_regression
+logreg_spec <- logistic_reg()%>% 
+  set_engine("glm")%>% 
+  set_mode("classification")
+##model spec Kernel
+svm_spec <- svm_rbf(mode = "classification", 
+                    engine = "kernlab",
+            cost = 1, rbf_sigma = 0.01)
+```
+Mixing Recipe and Models to Create Workflows
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+set.seed(123)
+#Null
+Null_workflow <- workflow() %>% 
+  add_recipe(GD_rec) %>% 
+  add_model(twt_null)
+#Lasso 
+lasso_workflow <- workflow()%>% 
+  add_recipe(GD_rec)%>% 
+  add_model(lasso_spec)
+#Naive Bayes 
+NB_workflow <- workflow()%>% 
+  add_recipe(GD_rec) %>% 
+  add_model(nb_spec)
+#Random Forests 
+RF_workflow <- workflow()%>% 
+  add_recipe(GD_rec) %>% 
+  add_model(ranger_spec)
+#Log_GLM_Workflow
+LOGGLM_workflow <- workflow()%>% 
+  add_recipe(GD_rec) %>% 
+  add_model(logreg_spec)
+#Kernel
+Kernel_workflow<-workflow()%>% 
+  add_recipe(GD_rec)%>% 
+  add_model(svm_spec)
+```
+
+Fitting/training the workflows using the training data
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+Null_fit<-Null_workflow%>%fit(train_data_GD_b)
+Null_fit  
+Lasso_fit<-lasso_workflow%>%fit(train_data_GD_b)
+Lasso_fit
+RF_fit<-RF_workflow%>%fit(train_data_GD_b)
+RF_fit
+LogReg_fit<-LOGGLM_workflow%>%fit(train_data_GD_b)
+LogReg_fit
+Kernel_fit<-Kernel_workflow%>%fit(train_data_GD_b)
+Kernel_fit
+NB_fit<-NB_workflow%>%fit(train_data_GD_b)
+NB_fit
+```
+
