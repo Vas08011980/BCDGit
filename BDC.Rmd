@@ -366,6 +366,31 @@ kable(NFMET)
 NFMETCurVe<-list(NFMET, curve_NF)
 NFMETCurVe
 
+#Lasso_Workflow
+results_Lasso %>% 
+  conf_mat(truth = GDDiag, estimate = .pred_class)
+#Visualise Results_NF
+update_geom_defaults(geom = "rect", new = list(fill = "midnightblue", alpha = 0.7))
+results_Lasso%>% 
+  conf_mat(GDDiag,.pred_class) %>% 
+  autoplot()
+#Metrics
+ev_met1_Lasso<-ev_met1(results_Lasso,truth = GDDiag, estimate = .pred_class)
+ACC_Lasso<-accuracy(results_Lasso, GDDiag,.pred_class)
+Rec_Lasso<-recall(results_Lasso, GDDiag, .pred_class)
+#Plot Roc_Curve
+curve_Lasso <- results_Lasso %>% 
+  roc_curve(GDDiag, .pred_Yes) %>% 
+  autoplot
+curve_Lasso
+#Evaluate AUC
+auc_Lasso <- results_Lasso %>% 
+  roc_auc(GDDiag, .pred_Yes)
+LassoMET<-list(auc_Lasso,ev_met1_Lasso, Rec_Lasso, ACC_Lasso)
+kable(LassoMET)
+LassoMETCurVe<-list(LassoMET, curve_Lasso)
+LassoMETCurVe
+
 #RF_Untuned_Workflow
 
 results_RF%>% 
@@ -390,6 +415,7 @@ auc_RF <- results_RF %>%
 RFMET<-list(auc_RF,ev_met1_RF, Rec_RF, ACC_RF)
 kable(RFMET)
 RFMETCurVe<-list(RFMET, curve_RF)
+RFMETCurVe
 
 #LogReg_Untuned_workflow
 
@@ -441,5 +467,66 @@ KernMET<-list(auc_Kern,ev_met1_Kern, Rec_Kern, ACC_Kern)
 kable(KernMET)
 KernMETCurVe<-list(KernMET, curve_LR)
 KernMETCurVe
+
+#NB_Untuned
+results_NB%>% 
+  conf_mat(truth = GDDiag, estimate = .pred_class)
+#Visualise Results_RF
+update_geom_defaults(geom = "rect", new = list(fill = "midnightblue", alpha = 0.7))
+results_NB%>% 
+  conf_mat(GDDiag,.pred_class) %>% 
+  autoplot()
+#Metrics
+ev_met1_NB<-ev_met1(results_NB,truth = GDDiag, estimate = .pred_class)
+Rec_NB<-recall(results_NB, GDDiag, .pred_class)
+ACC_NB<-accuracy(results_NB, GDDiag, .pred_class)
+#Plot Roc_Curve
+curve_NB <- results_NB %>% 
+  roc_curve(GDDiag, .pred_Yes) %>% 
+  autoplot
+curve_NB
+#Evaluate AUC
+auc_NB <- results_NB %>% 
+  roc_auc(GDDiag, .pred_Yes)
+NBMET<-list(auc_NB,ev_met1_NB, Rec_NB, ACC_NB)
+kable(NBMET)
+NBMETCurVe<-list(NBMET, curve_NB)
+NBMETCurVe
+```
+Fitting the different workflows on the testing data and extracting the most imprortnat recipe predictors for the different workflows for models available
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+Null_fit_Test<-Null_workflow%>%fit(test_data_GD_b)
+Null_fit_Test  
+Lasso_fit_Test<-lasso_workflow%>%fit(test_data_GD_b)
+Lasso_fit_Test
+RF_fit_Test<-RF_workflow%>%fit(test_data_GD_b)
+RF_fit_Test
+LogReg_fit_Test<-LOGGLM_workflow%>%fit(test_data_GD_b)
+LogReg_fit_Test
+Kernel_fit_Test<-Kernel_workflow%>%fit(test_data_GD_b)
+Kernel_fit_Test
+NB_fit_Test<-NB_workflow%>%fit(test_data_GD_b)
+NB_fit_Test
+
+Lasso_fit_Test %>% 
+  extract_fit_parsnip() %>% 
+ #Make VIP plot
+ vip()
+
+RF_fit_Test %>% 
+  extract_fit_parsnip() %>% 
+ #Make VIP plot
+ vip()
+
+LogReg_fit_Test %>% 
+  extract_fit_parsnip() %>% 
+ #Make VIP plot
+ vip()
+
+
 ```
 
