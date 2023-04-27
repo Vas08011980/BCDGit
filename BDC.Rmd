@@ -51,7 +51,10 @@ library(e1071)
 library(usethis)
 library(devtools)
 library(discrim)
-library(ranger)    
+library(ranger) 
+library(git4r)
+library(ggfortify)
+library(caret)    
   
 })
 })
@@ -283,5 +286,160 @@ Kernel_fit<-Kernel_workflow%>%fit(train_data_GD_b)
 Kernel_fit
 NB_fit<-NB_workflow%>%fit(train_data_GD_b)
 NB_fit
+```
+Predict Results on the Testing Data prior Tuning for Lasso, Naive Bayes, Random Forests.
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+#Null_Model_Untuned
+results_NF <- test_data_GD_b%>%select(GDDiag)%>% 
+  bind_cols(Null_fit%>% 
+              predict(new_data = test_data_GD_b))%>% 
+  bind_cols(Null_fit%>% 
+              predict(new_data = test_data_GD_b, type = "prob"))
+#RF_Untuned
+results_RF <- test_data_GD_b %>% select(GDDiag)%>% 
+  bind_cols(RF_fit %>% 
+              predict(new_data = test_data_GD_b))%>% 
+  bind_cols(RF_fit%>% 
+              predict(new_data = test_data_GD_b, type = "prob"))
+#LoReg_Untuned
+results_LR <- test_data_GD_b %>% select(GDDiag) %>% 
+  bind_cols (LogReg_fit%>% 
+              predict(new_data = test_data_GD_b)) %>% 
+  bind_cols( LogReg_fit%>% 
+              predict(new_data = test_data_GD_b, type = "prob"))
+#Kernel_SVM_Untuned
+results_Kern<-test_data_GD_b %>% select(GDDiag) %>% 
+  bind_cols (Kernel_fit%>% 
+              predict(new_data = test_data_GD_b)) %>% 
+  bind_cols(Kernel_fit%>% 
+              predict(new_data = test_data_GD_b, type = "prob"))
+#Lasso_Untuned
+results_Lasso<-test_data_GD_b %>% select(GDDiag) %>% 
+  bind_cols( Lasso_fit%>% 
+              predict(new_data = test_data_GD_b)) %>% 
+  bind_cols( Lasso_fit%>% 
+             predict(new_data = test_data_GD_b, type = "prob"))
+#NB_Fit_Untuned
+results_NB <- test_data_GD_b %>% select(GDDiag) %>% 
+ bind_cols(NB_fit %>% 
+             predict(new_data = test_data_GD_b)) %>% 
+  bind_cols( NB_fit%>% 
+              predict(new_data = test_data_GD_b, type = "prob"))
+
+```
+
+Get the prediction fit for all the untuned algorithms
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+#Collect precision metrics concurrently
+ev_met1<-metric_set(ppv, f_meas)
+
+#NF_Workflow
+results_NF %>% 
+  conf_mat(truth = GDDiag, estimate = .pred_class)
+#Visualise Results_NF
+update_geom_defaults(geom = "rect", new = list(fill = "midnightblue", alpha = 0.7))
+results_NF%>% 
+  conf_mat(GDDiag,.pred_class) %>% 
+  autoplot()
+#Metrics
+ev_met1_NF<-ev_met1(results_NF,truth = GDDiag, estimate = .pred_class)
+#ACC_NF<-accuracy(results_NF, GDDiag,.pred_class)
+Rec_NF<-recall(results_NF, GDDiag, .pred_class)
+#Plot Roc_Curve
+curve_NF <- results_NF %>% 
+  roc_curve(GDDiag, .pred_Yes) %>% 
+  autoplot
+curve_NF
+#Evaluate AUC
+auc_NF <- results_NF %>% 
+  roc_auc(GDDiag, .pred_Yes)
+NFMET<-list(auc_NF,ev_met1_NF, Rec_NF, ACC_NF)
+kable(NFMET)
+NFMETCurVe<-list(NFMET, curve_NF)
+NFMETCurVe
+
+#RF_Untuned_Workflow
+
+results_RF%>% 
+  conf_mat(truth = GDDiag, estimate = .pred_class)
+#Visualise Results_RF
+update_geom_defaults(geom = "rect", new = list(fill = "midnightblue", alpha = 0.7))
+results_RF%>% 
+  conf_mat(GDDiag,.pred_class) %>% 
+  autoplot()
+#Metrics
+ev_met1_RF<-ev_met1(results_RF,truth = GDDiag, estimate = .pred_class)
+Rec_RF<-recall(results_RF, GDDiag, .pred_class)
+ACC_RF<-accuracy(results_RF, GDDiag, .pred_class)
+#Plot Roc_Curve
+curve_RF <- results_RF %>% 
+  roc_curve(GDDiag, .pred_Yes) %>% 
+  autoplot
+curve_RF
+#Evaluate AUC
+auc_RF <- results_RF %>% 
+  roc_auc(GDDiag, .pred_Yes)
+RFMET<-list(auc_RF,ev_met1_RF, Rec_RF, ACC_RF)
+kable(RFMET)
+RFMETCurVe<-list(RFMET, curve_RF)
+
+#LogReg_Untuned_workflow
+
+results_LR%>% 
+  conf_mat(truth = GDDiag, estimate = .pred_class)
+#Visualise Results_RF
+update_geom_defaults(geom = "rect", new = list(fill = "midnightblue", alpha = 0.7))
+results_LR%>% 
+  conf_mat(GDDiag,.pred_class) %>% 
+  autoplot()
+#Metrics
+ev_met1_LR<-ev_met1(results_LR,truth = GDDiag, estimate = .pred_class)
+Rec_LR<-recall(results_LR, GDDiag, .pred_class)
+ACC_LR<-accuracy(results_LR, GDDiag, .pred_class)
+#Plot Roc_Curve
+curve_LR <- results_LR %>% 
+  roc_curve(GDDiag, .pred_Yes) %>% 
+  autoplot
+curve_LR
+#Evaluate AUC
+auc_LR <- results_LR %>% 
+  roc_auc(GDDiag, .pred_Yes)
+LRMET<-list(auc_LR,ev_met1_LR, Rec_LR, ACC_LR)
+kable(LRMET)
+LRMETCurVe<-list(LRMET, curve_LR)
+LRMETCurVe
+
+#Kernel_SMV_Untuned
+results_Kern%>% 
+  conf_mat(truth = GDDiag, estimate = .pred_class)
+#Visualise Results_RF
+update_geom_defaults(geom = "rect", new = list(fill = "midnightblue", alpha = 0.7))
+results_Kern%>% 
+  conf_mat(GDDiag,.pred_class) %>% 
+  autoplot()
+#Metrics
+ev_met1_Kern<-ev_met1(results_Kern,truth = GDDiag, estimate = .pred_class)
+Rec_Kern<-recall(results_Kern, GDDiag, .pred_class)
+ACC_Kern<-accuracy(results_Kern, GDDiag, .pred_class)
+#Plot Roc_Curve
+curve_Kern <- results_Kern %>% 
+  roc_curve(GDDiag, .pred_Yes) %>% 
+  autoplot
+curve_Kern
+#Evaluate AUC
+auc_Kern <- results_Kern %>% 
+  roc_auc(GDDiag, .pred_Yes)
+KernMET<-list(auc_Kern,ev_met1_Kern, Rec_Kern, ACC_Kern)
+kable(KernMET)
+KernMETCurVe<-list(KernMET, curve_LR)
+KernMETCurVe
 ```
 
