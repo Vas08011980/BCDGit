@@ -139,7 +139,12 @@ IGDD<-IGDD %>%
   IGDDiag<-IGDD%>%setNames(c("IGDDiag", "IDTotal", "IMTotal", "COMPTotal", "PETotal"))
   WHOT<-table(GDTDiag$GDDiag)
   APAT<-table(IGDDiag$IGDDiag)
-  
+}) 
+```
+ 
+ Compare WHO and APA Classifications 
+ 
+```{r}
   ComparisonWHOandAPA<-rbind(WHOT, APAT)
   kable(ComparisonWHOandAPA)
   
@@ -149,7 +154,6 @@ IGDD<-IGDD %>%
   ChiSqu
   Cram
 
-}) 
 ```
 Prepare the training and testing data for the classification supervised algorithms based on the WHO criteria
 
@@ -173,7 +177,14 @@ set.seed(123)
 folds <- vfold_cv(train_data_GD, v = 10)
 TRGDTab<-table(train_data_GD$GDDiag)
 TESTGDTab<-table(test_data_GD$GDDiag)
+})
+})
+```
 
+
+Compare the composition of training and testing data
+
+```{r}
 ComparisonTrainingandTesting<-rbind(TRGDTab, TESTGDTab)
   kable(ComparisonTrainingandTesting)
   
@@ -182,10 +193,6 @@ ComparisonTrainingandTesting<-rbind(TRGDTab, TESTGDTab)
   
   TTChiSqu
   TTCram
-
-
-})
-})
 ```
 
 Introduce, prepare and bake the prediction recipe
@@ -193,14 +200,16 @@ Introduce, prepare and bake the prediction recipe
 echo=FALSE
 error=FALSE
 warning=FALSE
-options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+options(scipen = 9999, digits=3, max.print=9999999, show.signif.stars=TRUE)
 set.seed(123)
 GD_rec <- 
-  recipe(GDDiag ~ ., data = train_data_GD)%>% step_smote(GDDiag, over_ratio = 0.25)%>%step_dummy(all_nominal_predictors())%>%step_zv(all_predictors())%>%step_nzv(all_predictors())%>%step_corr(all_predictors())%>%step_normalize(all_numeric_predictors())%>%prep()
+  recipe(GDDiag ~ ., data = train_data_GD)%>% step_smote(GDDiag, over_ratio = 0.25)%>%step_dummy(all_nominal_predictors())%>%step_zv(all_predictors())%>%step_nzv(all_predictors())%>%step_corr(all_predictors())%>% step_center(all_numeric_predictors())%>%
+  step_scale(all_numeric_predictors())%>% step_normalize(all_numeric_predictors())%>%prep()
 
 train_data_GD_b<-bake(GD_rec, new_data = train_data_GD)
 test_data_GD_b<-bake(GD_rec, new_data = test_data_GD)
  describe(train_data_GD_b)
+ describe(test_data_GD)
 
 ```
 Introduce the models to later mix with the baked recipe to create the workflows. A model is composed by a type, a mode and an engine.
@@ -208,7 +217,7 @@ Introduce the models to later mix with the baked recipe to create the workflows.
 echo=FALSE
 error=FALSE
 warning=FALSE
-options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+options(scipen = 9999, digits=3, max.print=9999999, show.signif.stars=TRUE)
 set.seed(123)
 ## token model
 twt_null <- null_model()%>%
@@ -273,7 +282,7 @@ Fitting/training the workflows using the training data
 echo=FALSE
 error=FALSE
 warning=FALSE
-options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+options(scipen = 9999, digits=3, max.print=9999999, show.signif.stars=TRUE)
 Null_fit<-Null_workflow%>%fit(train_data_GD_b)
 Null_fit  
 Lasso_fit<-lasso_workflow%>%fit(train_data_GD_b)
@@ -299,37 +308,63 @@ results_NF <- test_data_GD_b%>%select(GDDiag)%>%
               predict(new_data = test_data_GD_b))%>% 
   bind_cols(Null_fit%>% 
               predict(new_data = test_data_GD_b, type = "prob"))
+kable(results_NF)
+describe(results_NF)
+
+```
+Random Forests Untuned
+```{r}
 #RF_Untuned
 results_RF <- test_data_GD_b %>% select(GDDiag)%>% 
   bind_cols(RF_fit %>% 
               predict(new_data = test_data_GD_b))%>% 
   bind_cols(RF_fit%>% 
               predict(new_data = test_data_GD_b, type = "prob"))
+kable(results_RF)
+describe(results_RF)
+```
+```{r}
 #LoReg_Untuned
 results_LR <- test_data_GD_b %>% select(GDDiag) %>% 
   bind_cols (LogReg_fit%>% 
               predict(new_data = test_data_GD_b)) %>% 
   bind_cols( LogReg_fit%>% 
               predict(new_data = test_data_GD_b, type = "prob"))
+kable(results_LR)
+describe(results_LR)
+```
+
+```{r}
 #Kernel_SVM_Untuned
 results_Kern<-test_data_GD_b %>% select(GDDiag) %>% 
   bind_cols (Kernel_fit%>% 
               predict(new_data = test_data_GD_b)) %>% 
   bind_cols(Kernel_fit%>% 
               predict(new_data = test_data_GD_b, type = "prob"))
+kable(results_Kern)
+describe(results_Kern)
+```
+
+```{r}
 #Lasso_Untuned
 results_Lasso<-test_data_GD_b %>% select(GDDiag) %>% 
   bind_cols( Lasso_fit%>% 
               predict(new_data = test_data_GD_b)) %>% 
   bind_cols( Lasso_fit%>% 
              predict(new_data = test_data_GD_b, type = "prob"))
+kable(results_Lasso)
+describe(results_Lasso)
+```
+
+```{r}
 #NB_Fit_Untuned
 results_NB <- test_data_GD_b %>% select(GDDiag) %>% 
  bind_cols(NB_fit %>% 
              predict(new_data = test_data_GD_b)) %>% 
   bind_cols( NB_fit%>% 
               predict(new_data = test_data_GD_b, type = "prob"))
-
+kable(results_NB)
+describe(results_NB)
 ```
 
 Get the prediction fit for all the untuned algorithms
@@ -349,23 +384,35 @@ update_geom_defaults(geom = "rect", new = list(fill = "midnightblue", alpha = 0.
 results_NF%>% 
   conf_mat(GDDiag,.pred_class) %>% 
   autoplot()
+```
+
+```{r}
 #Metrics
 ev_met1_NF<-ev_met1(results_NF,truth = GDDiag, estimate = .pred_class)
-#ACC_NF<-accuracy(results_NF, GDDiag,.pred_class)
-Rec_NF<-recall(results_NF, GDDiag, .pred_class)
+Acc_NF<-yardstick::accuracy(results_NF, GDDiag,.pred_class)
+Rec_NF<-yardstick::recall(results_NF, GDDiag, .pred_class)
 #Plot Roc_Curve
 curve_NF <- results_NF %>% 
   roc_curve(GDDiag, .pred_Yes) %>% 
   autoplot
 curve_NF
+
+```
+
+```{r}
 #Evaluate AUC
 auc_NF <- results_NF %>% 
   roc_auc(GDDiag, .pred_Yes)
-NFMET<-list(auc_NF,ev_met1_NF, Rec_NF, ACC_NF)
+NFMET<-list(auc_NF,ev_met1_NF, Rec_NF, Acc_NF)
 kable(NFMET)
+```
+
+```{r}
 NFMETCurVe<-list(NFMET, curve_NF)
 NFMETCurVe
+```
 
+```{r}
 #Lasso_Workflow
 results_Lasso %>% 
   conf_mat(truth = GDDiag, estimate = .pred_class)
@@ -374,23 +421,39 @@ update_geom_defaults(geom = "rect", new = list(fill = "midnightblue", alpha = 0.
 results_Lasso%>% 
   conf_mat(GDDiag,.pred_class) %>% 
   autoplot()
+
+```
+
+
+```{r}
 #Metrics
 ev_met1_Lasso<-ev_met1(results_Lasso,truth = GDDiag, estimate = .pred_class)
-ACC_Lasso<-accuracy(results_Lasso, GDDiag,.pred_class)
-Rec_Lasso<-recall(results_Lasso, GDDiag, .pred_class)
+ACC_Lasso<-yardstick::accuracy(results_Lasso, GDDiag,.pred_class)
+Rec_Lasso<-yardstick::recall(results_Lasso, GDDiag, .pred_class)
 #Plot Roc_Curve
 curve_Lasso <- results_Lasso %>% 
   roc_curve(GDDiag, .pred_Yes) %>% 
   autoplot
 curve_Lasso
+```
+
+```{r}
 #Evaluate AUC
 auc_Lasso <- results_Lasso %>% 
   roc_auc(GDDiag, .pred_Yes)
 LassoMET<-list(auc_Lasso,ev_met1_Lasso, Rec_Lasso, ACC_Lasso)
 kable(LassoMET)
+
+```
+
+```{r}
 LassoMETCurVe<-list(LassoMET, curve_Lasso)
 LassoMETCurVe
 
+```
+
+
+```{r}
 #RF_Untuned_Workflow
 
 results_RF%>% 
@@ -400,15 +463,23 @@ update_geom_defaults(geom = "rect", new = list(fill = "midnightblue", alpha = 0.
 results_RF%>% 
   conf_mat(GDDiag,.pred_class) %>% 
   autoplot()
+
+```
+
+```{r}
 #Metrics
 ev_met1_RF<-ev_met1(results_RF,truth = GDDiag, estimate = .pred_class)
-Rec_RF<-recall(results_RF, GDDiag, .pred_class)
-ACC_RF<-accuracy(results_RF, GDDiag, .pred_class)
+Rec_RF<-yardstick::recall(results_RF, GDDiag, .pred_class)
+ACC_RF<-yardstick::accuracy(results_RF, GDDiag, .pred_class)
 #Plot Roc_Curve
 curve_RF <- results_RF %>% 
   roc_curve(GDDiag, .pred_Yes) %>% 
   autoplot
 curve_RF
+
+```
+
+```{r}
 #Evaluate AUC
 auc_RF <- results_RF %>% 
   roc_auc(GDDiag, .pred_Yes)
@@ -417,6 +488,9 @@ kable(RFMET)
 RFMETCurVe<-list(RFMET, curve_RF)
 RFMETCurVe
 
+```
+
+```{r}
 #LogReg_Untuned_workflow
 
 results_LR%>% 
@@ -426,23 +500,38 @@ update_geom_defaults(geom = "rect", new = list(fill = "midnightblue", alpha = 0.
 results_LR%>% 
   conf_mat(GDDiag,.pred_class) %>% 
   autoplot()
+
+```
+
+```{r}
 #Metrics
 ev_met1_LR<-ev_met1(results_LR,truth = GDDiag, estimate = .pred_class)
-Rec_LR<-recall(results_LR, GDDiag, .pred_class)
-ACC_LR<-accuracy(results_LR, GDDiag, .pred_class)
+Rec_LR<-yardstick::recall(results_LR, GDDiag, .pred_class)
+ACC_LR<-yardstick::accuracy(results_LR, GDDiag, .pred_class)
 #Plot Roc_Curve
 curve_LR <- results_LR %>% 
   roc_curve(GDDiag, .pred_Yes) %>% 
   autoplot
 curve_LR
+
+```
+
+```{r}
 #Evaluate AUC
 auc_LR <- results_LR %>% 
   roc_auc(GDDiag, .pred_Yes)
 LRMET<-list(auc_LR,ev_met1_LR, Rec_LR, ACC_LR)
 kable(LRMET)
+
+```
+
+```{r}
 LRMETCurVe<-list(LRMET, curve_LR)
 LRMETCurVe
 
+```
+
+```{r}
 #Kernel_SMV_Untuned
 results_Kern%>% 
   conf_mat(truth = GDDiag, estimate = .pred_class)
@@ -451,15 +540,23 @@ update_geom_defaults(geom = "rect", new = list(fill = "midnightblue", alpha = 0.
 results_Kern%>% 
   conf_mat(GDDiag,.pred_class) %>% 
   autoplot()
+
+```
+
+```{r}
 #Metrics
 ev_met1_Kern<-ev_met1(results_Kern,truth = GDDiag, estimate = .pred_class)
-Rec_Kern<-recall(results_Kern, GDDiag, .pred_class)
-ACC_Kern<-accuracy(results_Kern, GDDiag, .pred_class)
+Rec_Kern<-yardstick::recall(results_Kern, GDDiag, .pred_class)
+ACC_Kern<-yardstick::accuracy(results_Kern, GDDiag, .pred_class)
 #Plot Roc_Curve
 curve_Kern <- results_Kern %>% 
   roc_curve(GDDiag, .pred_Yes) %>% 
   autoplot
 curve_Kern
+
+```
+
+```{r}
 #Evaluate AUC
 auc_Kern <- results_Kern %>% 
   roc_auc(GDDiag, .pred_Yes)
@@ -468,6 +565,9 @@ kable(KernMET)
 KernMETCurVe<-list(KernMET, curve_LR)
 KernMETCurVe
 
+```
+
+```{r}
 #NB_Untuned
 results_NB%>% 
   conf_mat(truth = GDDiag, estimate = .pred_class)
@@ -476,24 +576,38 @@ update_geom_defaults(geom = "rect", new = list(fill = "midnightblue", alpha = 0.
 results_NB%>% 
   conf_mat(GDDiag,.pred_class) %>% 
   autoplot()
+
+```
+
+```{r}
 #Metrics
 ev_met1_NB<-ev_met1(results_NB,truth = GDDiag, estimate = .pred_class)
-Rec_NB<-recall(results_NB, GDDiag, .pred_class)
-ACC_NB<-accuracy(results_NB, GDDiag, .pred_class)
+Rec_NB<-yardstick::recall(results_NB, GDDiag, .pred_class)
+ACC_NB<-yardstick::accuracy(results_NB, GDDiag, .pred_class)
 #Plot Roc_Curve
 curve_NB <- results_NB %>% 
   roc_curve(GDDiag, .pred_Yes) %>% 
   autoplot
 curve_NB
+
+```
+
+```{r}
 #Evaluate AUC
 auc_NB <- results_NB %>% 
   roc_auc(GDDiag, .pred_Yes)
 NBMET<-list(auc_NB,ev_met1_NB, Rec_NB, ACC_NB)
 kable(NBMET)
+
+
+```
+
+```{r}
 NBMETCurVe<-list(NBMET, curve_NB)
 NBMETCurVe
+
 ```
-Fitting the different workflows on the testing data and extracting the most imprortnat recipe predictors for the different workflows for models available
+Fitting the different workflows on the testing data and extracting the most importnat recipe predictors for the different workflows for models available
 ```{r}
 echo=FALSE
 error=FALSE
@@ -529,4 +643,12 @@ LogReg_fit_Test %>%
 
 
 ```
+Tune Tunable Predictors RF, Kernel, Lasso, Logistic Regression
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+```
+
 
