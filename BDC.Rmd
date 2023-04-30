@@ -651,4 +651,128 @@ warning=FALSE
 options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
 ```
 
+Tune Kernel Algorithm
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+set.seed(123)
+#Kernel
+#first creating a tuning model
+svm_spec_T <- svm_rbf(mode = "classification", engine = "kernlab", cost = tune(), rbf_sigma = tune())
+#second creating a tuning workflow
+Kernel_workflow_T<-workflow() %>% 
+  add_recipe(GD_rec) %>% 
+  add_model(svm_spec_T)
+#third calling the workflow
+Kernel_workflow_T
+```
+
+```{r}
+# fourth creating the regular grid of 6 values for each tuning parameters
+svm_grid <- grid_regular(parameters(svm_spec_T), levels = 10)
+#fifth calling the grid
+svm_grid
+```
+
+```{r}
+#sixth tuning the grid
+svm_res <- tune_grid(
+  object = Kernel_workflow_T,
+  resamples = folds,
+  grid = svm_grid
+)
+#Seventh collect tuning metrics
+svm_res %>% 
+  collect_metrics() %>% 
+  slice_head(n = 20)
+  #show_best()
+```
+
+```{r} 
+  
+  #Eighth Visualizing Tuning Metrics
+  
+svm_res %>% 
+  collect_metrics() %>% 
+  mutate(rbf_sigma = factor(rbf_sigma)) %>% 
+  ggplot(mapping = aes(x = cost, y = mean, color = rbf_sigma)) +
+  geom_line(size = 1.5, alpha = 0.7) +
+  geom_point(size = 2) +
+  facet_wrap(~.metric, scales = "free", nrow = 2) +
+  scale_x_log10(labels = scales::label_number()) +
+  scale_color_viridis_d(option = "viridis", begin = .1)
+```
+
+```{r} 
+#Nineth show the best model
+svm_res %>% 
+  show_best("accuracy")
+```
+
+```{r} 
+svm_res%>%
+  show_best("roc_auc")
+```
+
+```{r} 
+# Tenth Select best model hyperparameters
+best_svm <- svm_res %>% 
+  select_best("accuracy", "roc_auc")
+#11th Finalize the workoflow with the best SVM
+final_wflow <- Kernel_workflow_T %>% 
+  finalize_workflow(best_svm)
+#12th Check the fit of the final Wflow on the training data
+Tuned_Kernel_fit<-final_wflow%>%fit(train_data_GD_b)
+Tuned_Kernel_fit
+```
+
+```{r} 
+#Test the tuned Kernel on the test data
+results_tuned_Kern<-test_data_GD_b %>% select(GDDiag) %>% 
+  bind_cols (Tuned_Kernel_fit%>% 
+              predict(new_data = test_data_GD_b)) %>% 
+  bind_cols(Tuned_Kernel_fit%>% 
+              predict(new_data = test_data_GD_b, type = "prob"))
+kable(results_tuned_Kern)
+``` 
+
+```{r} 
+#Tuned Kernel_Results
+results_tuned_Kern %>% 
+  conf_mat(truth = GDDiag, estimate = .pred_class)
+#visualise CF
+update_geom_defaults(geom = "rect", new = list(fill = "midnightblue", alpha = 0.7))
+results_tuned_Kern %>% 
+  conf_mat(GDDiag, .pred_class) %>% 
+  autoplot()
+```
+
+```{r} 
+
+#Plot Roc_Curve
+curve_kern_tuned <- results_tuned_Kern%>% 
+  roc_curve(GDDiag, .pred_Yes)%>% 
+  autoplot
+
+curve_kern_tuned
+
+```
+
+```{r} 
+# Evaluate ROC_AUC
+auc_kern_tuned <- results_tuned_Kern %>% 
+  roc_auc(GDDiag, .pred_Yes)
+auc_kern_tuned
+```
+
+```{r} 
+#AUC, PPV, ACC, Recall, Fmeas
+ev_met1_TunKern<-ev_met1(results_tuned_Kern,truth = GDDiag, estimate = .pred_class)
+Rec_TK<-yardstick::recall(results_tuned_Kern, GDDiag, .pred_class)
+ACC_TK<-yardstick::accuracy(results_tuned_Kern, GDDiag, .pred_class)
+TunKernMET<-list(auc_kern_tuned,ev_met1_TunKern, Rec_TK, ACC_TK)
+kable(TunKernMET)
+```
 
