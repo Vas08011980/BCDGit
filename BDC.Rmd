@@ -644,14 +644,8 @@ LogReg_fit_Test %>%
 
 ```
 Tune Tunable Predictors RF, Kernel, Lasso, Logistic Regression
-```{r}
-echo=FALSE
-error=FALSE
-warning=FALSE
-options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
-```
 
-Tune Kernel Algorithm
+#Tune Kernel Algorithm
 ```{r}
 echo=FALSE
 error=FALSE
@@ -774,5 +768,120 @@ Rec_TK<-yardstick::recall(results_tuned_Kern, GDDiag, .pred_class)
 ACC_TK<-yardstick::accuracy(results_tuned_Kern, GDDiag, .pred_class)
 TunKernMET<-list(auc_kern_tuned,ev_met1_TunKern, Rec_TK, ACC_TK)
 kable(TunKernMET)
+```
+Tune Random Forests
+```{r}
+set.seed(123)
+#RF
+#first creating a tuning model
+ranger_spec_T <- rand_forest(
+  mtry = tune(),
+  trees = 1000,
+  min_n = tune()
+)%>%
+  set_mode("classification")%>%
+  set_engine("ranger")
+#second creating a tuning workflow
+RF_workflow_T<-workflow() %>% 
+  add_recipe(GD_rec) %>% 
+  add_model(ranger_spec_T)
+#third calling the workflow
+RF_workflow_T
+```
+
+```{r}
+# fourth tuning/testing the workflow to the resamples
+set.seed(345)
+RF_res <- tune_grid(
+  RF_workflow_T,
+  resamples = folds,
+  grid = 20
+)
+
+```
+
+```{r}
+#Fifth collect and visualize tuning metrics
+RF_res %>%
+  collect_metrics() %>%
+  filter(.metric == "accuracy") %>%
+  select(mean, min_n, mtry) %>%
+  pivot_longer(min_n:mtry,
+    values_to = "value",
+    names_to = "parameter"
+  )%>%
+  ggplot(aes(value, mean, color = parameter)) +
+  geom_point(show.legend = FALSE) +
+  facet_wrap(~parameter, scales = "free_x") +
+  labs(x = NULL, y = "Accuracy")
+```
+
+```{r}
+#Fifth for collecting tuning metrics
+RF_res %>% 
+  collect_metrics() %>% 
+  slice_head(n = 10)
+
+```
+
+```{r}
+#Nineth show the best model
+RF_res %>% 
+  show_best("accuracy", "roc_auc")
+```
+
+```{r}
+# Tenth Select best model hyperparameters
+best_RF <- RF_res %>% 
+  select_best("accuracy", "roc_auc")
+```
+
+```{r}
+#11th Finalize the workoflow with the best SVM
+final_wflow_RF <- RF_workflow_T %>% 
+  finalize_workflow(best_RF)
+#12th Check the fit of the final Wflow on the training data
+Tuned_RF_fit<-final_wflow_RF%>%fit(train_data_GD_b)
+Tuned_RF_fit
+```
+
+```{r}
+#Test the tuned Kernel on the test data
+results_tuned_RF<-test_data_GD_b %>% select(GDDiag) %>% 
+  bind_cols (Tuned_RF_fit%>% 
+              predict(new_data = test_data_GD_b)) %>% 
+  bind_cols(Tuned_RF_fit%>% 
+              predict(new_data = test_data_GD_b, type = "prob"))
+kable(results_tuned_RF)
+```
+
+```{r}
+#Tuned RF_Results
+results_tuned_RF %>% 
+  conf_mat(truth = GDDiag, estimate = .pred_class)
+#visualise CF
+update_geom_defaults(geom = "rect", new = list(fill = "midnightblue", alpha = 0.7))
+results_tuned_RF %>% 
+  conf_mat(GDDiag, .pred_class) %>% 
+  autoplot()
+```
+
+```{r}
+#Plot Roc_Curve
+curve_RF_tuned <- results_tuned_RF %>% 
+  roc_curve(GDDiag, .pred_Yes) %>% 
+  autoplot
+curve_RF_tuned
+```
+
+```{r}
+# Evaluate ROC_AOC
+auc_RF_tuned <- results_tuned_RF %>% 
+  roc_auc(GDDiag, .pred_Yes)
+ev_met1_TunRF<-ev_met1(results_tuned_RF,truth = GDDiag, estimate = .pred_class)
+Rec_TRF<-yardstick::recall(results_tuned_RF, GDDiag, .pred_class)
+ACC_TRF<-yardstick::accuracy(results_tuned_RF, GDDiag, .pred_class)
+TunRFMET<-list(auc_RF_tuned,ev_met1_TunRF, Rec_TRF, ACC_TRF)
+kable(TunRFMET)
 ```
 
