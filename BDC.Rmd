@@ -54,7 +54,10 @@ library(discrim)
 library(ranger) 
 library(git4r)
 library(ggfortify)
-library(caret)    
+library(caret)
+library(doParallel) 
+library(dials) 
+    
   
 })
 })
@@ -212,6 +215,15 @@ test_data_GD_b<-bake(GD_rec, new_data = test_data_GD)
  describe(test_data_GD)
 
 ```
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 9999, digits=3, max.print=9999999, show.signif.stars=TRUE)
+set.seed(123)
+train_boot <- bootstraps(train_data_GD, strata = GDDiag)
+```
+
 Introduce the models to later mix with the baked recipe to create the workflows. A model is composed by a type, a mode and an engine.
 ```{r}
 echo=FALSE
@@ -673,10 +685,15 @@ svm_grid
 ```{r}
 #sixth tuning the grid
 svm_res <- tune_grid(
-  object = Kernel_workflow_T,
-  resamples = folds,
+  object = Kernel_workflow_T,resamples = train_boot,
   grid = svm_grid
 )
+  
+```
+
+
+```{r}
+
 #Seventh collect tuning metrics
 svm_res %>% 
   collect_metrics() %>% 
@@ -794,7 +811,7 @@ RF_workflow_T
 set.seed(345)
 RF_res <- tune_grid(
   RF_workflow_T,
-  resamples = folds,
+  resamples = train_boot,
   grid = 20
 )
 
@@ -834,6 +851,7 @@ RF_res %>%
 # Tenth Select best model hyperparameters
 best_RF <- RF_res %>% 
   select_best("accuracy", "roc_auc")
+best_RF
 ```
 
 ```{r}
@@ -845,8 +863,11 @@ Tuned_RF_fit<-final_wflow_RF%>%fit(train_data_GD_b)
 Tuned_RF_fit
 ```
 
+
+
+
 ```{r}
-#Test the tuned Kernel on the test data
+#Test the tuned RF on the test data
 results_tuned_RF<-test_data_GD_b %>% select(GDDiag) %>% 
   bind_cols (Tuned_RF_fit%>% 
               predict(new_data = test_data_GD_b)) %>% 
@@ -854,6 +875,9 @@ results_tuned_RF<-test_data_GD_b %>% select(GDDiag) %>%
               predict(new_data = test_data_GD_b, type = "prob"))
 kable(results_tuned_RF)
 ```
+
+
+`
 
 ```{r}
 #Tuned RF_Results
@@ -883,5 +907,422 @@ Rec_TRF<-yardstick::recall(results_tuned_RF, GDDiag, .pred_class)
 ACC_TRF<-yardstick::accuracy(results_tuned_RF, GDDiag, .pred_class)
 TunRFMET<-list(auc_RF_tuned,ev_met1_TunRF, Rec_TRF, ACC_TRF)
 kable(TunRFMET)
+```
+#Tune Lasso
+```{r}
+set.seed(123)
+#LASSO
+
+#first creating a tuning model
+tune_Lasso <- multinom_reg(penalty =tune(), mixture = 1)%>%
+  set_mode("classification")%>%
+  set_engine("glmnet")
+
+#second creating a tuning workflow
+Lasso_workflow_T<-workflow()%>% 
+  add_recipe(GD_rec) %>% 
+  add_model(tune_Lasso)
+#third calling the workflow
+Lasso_workflow_T
+```
+Define the Lamda grid
+```{r}
+set.seed(123)
+lambda_grid <- grid_regular(penalty(), levels = 50)
+```
+
+Tune the grid using our workflow object
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+doParallel::registerDoParallel()
+
+set.seed(123)
+lasso_grid <- tune_grid(
+  Lasso_workflow_T,
+  resamples = train_boot,
+  grid = lambda_grid)
+
+lasso_grid %>%
+  collect_metrics()
+
+```
+Visualizing
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+lasso_grid %>%
+  collect_metrics() %>%
+  ggplot(aes(penalty, mean, color = .metric)) +
+  geom_errorbar(aes(
+    ymin = mean - std_err,
+    ymax = mean + std_err
+  ),
+  alpha = 0.5
+  ) +
+  geom_line(size = 1.5) +
+  facet_wrap(~.metric, scales = "free", nrow = 2) +
+  scale_x_log10() +
+  theme(legend.position = "none")
+```
+
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+Best_Lasso <- lasso_grid%>%
+  select_best("accuracy", "roc_auc")
+
+```
+
+
+
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+#Finalize the workoflow with the best LASSO
+final_wflow_Lasso <-Lasso_workflow_T%>%
+  finalize_workflow(Best_Lasso)
+#Check the fit of the final Wflow on the training data
+Tuned_Lasso_fit<-final_wflow_Lasso%>%fit(train_data_GD_b)
+Tuned_Lasso_fit
+
+```
+
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+#Test the tuned Lasso on the test data
+results_tuned_Lasso<-test_data_GD_b%>% select(GDDiag) %>% 
+  bind_cols(Tuned_Lasso_fit%>% 
+              predict(new_data = test_data_GD_b)) %>% 
+  bind_cols(Tuned_Lasso_fit%>% 
+              predict(new_data = test_data_GD_b, type = "prob"))
+kable(results_tuned_Lasso)
+```
+```{r}
+#Tuned Lasso_Results
+results_tuned_Lasso %>% 
+  conf_mat(truth = GDDiag, estimate = .pred_class)
+#visualise CF
+update_geom_defaults(geom = "rect", new = list(fill = "midnightblue", alpha = 0.7))
+results_tuned_Lasso %>% 
+  conf_mat(GDDiag, .pred_class) %>% 
+  autoplot()
+```
+```{r}
+#Plot Roc_Curve
+curve_Lasso_tuned <- results_tuned_Lasso %>% 
+  roc_curve(GDDiag, .pred_Yes) %>% 
+  autoplot
+curve_Lasso_tuned
+```
+
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+# Evaluate ROC_AOC
+auc_Lasso_tuned <- results_tuned_Lasso %>% 
+  roc_auc(GDDiag, .pred_Yes)
+auc_Lasso_tuned
+```
+
+```{r}
+ev_met1_TunLasso<-ev_met1(results_tuned_Lasso,truth = GDDiag, estimate = .pred_class)
+Rec_TLasso<-yardstick::recall(results_tuned_Lasso, GDDiag, .pred_class)
+ACC_TLasso<-yardstick::accuracy(results_tuned_Lasso, GDDiag, .pred_class)
+TunLassoMET<-list(auc_Lasso_tuned,ev_met1_TunLasso, Rec_TLasso, ACC_TLasso)
+kable(TunLassoMET)
+```
+
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+
+set.seed(123)
+#Naive Bayes
+
+#first creating a tuning model
+tune_NB <- naive_Bayes(smoothness = tune(), Laplace = tune ())%>% 
+  set_mode("classification")%>%
+  set_engine("naivebayes")
+
+
+#second creating a tuning workflow
+NB_workflow_T<-workflow()%>% 
+  add_recipe(GD_rec) %>% 
+  add_model(tune_NB)
+#third calling the workflow
+NB_workflow_T
+
+```
+```{r}
+# fourth tuning/testing the workflow to the resamples
+set.seed(345)
+NB_grid <- grid_regular(parameters(tune_NB), levels = 20)
+
+NB_res<- tune_grid(
+  NB_workflow_T,
+  resamples = train_boot,
+  grid = NB_grid)
+  
+```
+
+
+
+```{r}
+#Collect metrics
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+
+set.seed(123)
+NB_res%>% 
+  collect_metrics() %>% 
+  slice_head(n = 10)
+  
+```
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+best_NB <- NB_res %>% 
+  select_best("accuracy", "roc_auc")
+best_NB
+```
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+#11th Finalize the workoflow with the best model
+final_wflow_NB <- NB_workflow_T %>% 
+  finalize_workflow(best_NB)
+#12th Check the fit of the final Wflow on the training data
+Tuned_NB_fit<-final_wflow_NB%>%fit(train_data_GD_b)
+Tuned_NB_fit
+```
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+#Test the tuned NB on the test data
+results_tuned_NB<-test_data_GD_b %>% select(GDDiag) %>% 
+  bind_cols (Tuned_NB_fit%>% 
+              predict(new_data = test_data_GD_b)) %>% 
+  bind_cols(Tuned_NB_fit%>% 
+              predict(new_data = test_data_GD_b, type = "prob"))
+kable(results_tuned_NB)
+```
+
+
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+#Tuned NB_Results
+results_tuned_NB %>% 
+  conf_mat(truth = GDDiag, estimate = .pred_class)
+#visualise CF
+update_geom_defaults(geom = "rect", new = list(fill = "midnightblue", alpha = 0.7))
+results_tuned_NB %>% 
+  conf_mat(GDDiag, .pred_class) %>% 
+  autoplot()
+```
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+#Plot Roc_Curve
+curve_NB_tuned <- results_tuned_NB %>% 
+  roc_curve(GDDiag, .pred_Yes) %>% 
+  autoplot
+curve_NB_tuned
+```
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+# Evaluate ROC_AUC
+auc_NB_tuned <- results_tuned_NB %>% 
+  roc_auc(GDDiag, .pred_Yes)
+auc_NB_tuned
+```
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+ev_met1_TunNB<-ev_met1(results_tuned_NB,truth = GDDiag, estimate = .pred_class)
+Rec_TNB<-yardstick::recall(results_tuned_NB, GDDiag, .pred_class)
+ACC_TNB<-yardstick::accuracy(results_tuned_NB, GDDiag, .pred_class)
+TunNBMET<-list(auc_NB_tuned,ev_met1_TunNB, Rec_TNB, ACC_TNB)
+kable(TunNBMET)
+```
+```{r}
+
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+
+set.seed(123)
+#Logistic Regression
+
+#first creating a tuning model
+tune_LR <- logistic_reg(penalty = tune(), mixture = tune())%>% 
+  set_mode("classification")%>%
+  set_engine("glmnet")
+
+
+#second creating a tuning workflow
+LR_workflow_T<-workflow()%>% 
+  add_recipe(GD_rec) %>% 
+  add_model(tune_LR)
+#third calling the workflow
+LR_workflow_T
+
+```
+
+
+```{r}
+
+set.seed(345)
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+
+LR_grid <- grid_regular(parameters(tune_LR), levels = 20)
+
+LR_res<- tune_grid(
+  LR_workflow_T,
+  resamples = train_boot,
+  grid = LR_grid)
+
+LR_res
+
+```
+
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+
+set.seed(123)
+LR_res%>% 
+  collect_metrics() %>% 
+  slice_head(n = 10)
+
+```
+
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+best_LR <- LR_res %>% 
+  select_best("accuracy", "roc_auc")
+best_LR
+```
+
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+#11th Finalize the workoflow with the best model
+final_wflow_LR <- LR_workflow_T %>% 
+  finalize_workflow(best_LR)
+#12th Check the fit of the final Wflow on the training data
+Tuned_LR_fit<-final_wflow_LR%>%fit(train_data_GD_b)
+Tuned_LR_fit
+```
+
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+#Test the tuned NB on the test data
+results_tuned_LR<-test_data_GD_b %>% select(GDDiag) %>% 
+  bind_cols (Tuned_LR_fit%>% 
+              predict(new_data = test_data_GD_b)) %>% 
+  bind_cols(Tuned_LR_fit%>% 
+              predict(new_data = test_data_GD_b, type = "prob"))
+kable(results_tuned_LR)
+```
+
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+#Tuned NB_Results
+results_tuned_LR %>% 
+  conf_mat(truth = GDDiag, estimate = .pred_class)
+#visualise CF
+update_geom_defaults(geom = "rect", new = list(fill = "midnightblue", alpha = 0.7))
+results_tuned_LR %>% 
+  conf_mat(GDDiag, .pred_class) %>% 
+  autoplot()
+
+```
+
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+#Plot Roc_Curve
+curve_LR_tuned <- results_tuned_LR%>% 
+  roc_curve(GDDiag, .pred_Yes) %>% 
+  autoplot
+curve_LR_tuned
+```
+
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+# Evaluate ROC_AUC
+auc_LR_tuned <- results_tuned_LR %>% 
+  roc_auc(GDDiag, .pred_Yes)
+auc_LR_tuned
+
+```
+
+```{r}
+echo=FALSE
+error=FALSE
+warning=FALSE
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+ev_met1_TunLR<-ev_met1(results_tuned_LR,truth = GDDiag, estimate = .pred_class)
+Rec_TLR<-yardstick::recall(results_tuned_LR, GDDiag, .pred_class)
+ACC_TLR<-yardstick::accuracy(results_tuned_LR, GDDiag, .pred_class)
+TunLRMET<-list(auc_LR_tuned,ev_met1_TunLR, Rec_TLR, ACC_TLR)
+kable(TunLRMET)
+
 ```
 
